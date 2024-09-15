@@ -17,11 +17,14 @@ def add_entry():
     enemy_leader = input("Entrez le nom du leader ennemi : ").lower()
     enemy_base = input("Entrez le nom de la base ennemie : ").lower()
     is_win = input("Avez-vous gagné ? (0 pour non, 1 pour oui) : ")
-    is_give_up = input("Avez-vous abandonné ? (0 pour non, 1 pour oui) : ")
+    is_give_up = input("Le perdant a-t-il abandonné ? (0 pour non, 1 pour oui) : ")
+    has_init = input("La partie a-t-elle été initialisée ? (0 pour non, 1 pour oui) : ")
     turn = input("Entrez le nombre de tours : ")
     platform = input("Entrez la plateforme : ").lower()
-    side = input("Entrez le side: ").lower()
+    side = input("Entrez le côté : ").lower()
     comment = input("Entrez un commentaire : ").lower()
+    points_my_base = input("Entrez le nombre de points restants de votre base : ")
+    points_enemy_base = input("Entrez le nombre de points restants de la base ennemie : ")
 
     file_exists = False
     try:
@@ -33,12 +36,13 @@ def add_entry():
     with open(filename, 'a', newline='') as file:
         writer = csv.writer(file)
         if not file_exists:
-            writer.writerow(['Date', 'My Leader', 'My Base', 'Enemy Leader', 'Enemy Base', 'Is WIN', 'Is Give Up?', 'Turn', 'Platform', 'Side', 'Comment'])
-        writer.writerow([date, my_leader, my_base, enemy_leader, enemy_base, is_win, is_give_up, turn, platform, side, comment])
+            writer.writerow(['Date', 'My Leader', 'My Base', 'Enemy Leader', 'Enemy Base', 'Is WIN', 'Is Give Up?', 'Has Init?', 'Turn', 'Points My Base', 'Points Enemy Base', 'Platform', 'Side', 'Comment'])
+        writer.writerow([date, my_leader, my_base, enemy_leader, enemy_base, is_win, is_give_up, has_init, turn, points_my_base, points_enemy_base, platform, side, comment])
 
     print(f"Les données ont été ajoutées au fichier {filename}.")
 
-def filter_games(my_leader_filter=None, enemy_leader_filter=None, my_base_filter=None, enemy_base_filter=None, date_after=None, date_before=None, platform_filter=None):
+
+def filter_games(my_leader_filter=None, enemy_leader_filter=None, my_base_filter=None, enemy_base_filter=None, date_after=None, date_before=None, platform_filter=None, has_init_filter=None, is_give_up_filter=None):
     """Filtre les parties depuis le fichier CSV selon les critères donnés."""
     filtered_rows = []
 
@@ -65,6 +69,10 @@ def filter_games(my_leader_filter=None, enemy_leader_filter=None, my_base_filter
                     continue
                 if platform_filter and row['Platform'] != platform_filter.lower():
                     continue
+                if has_init_filter and row['Has Init'] != has_init_filter.lower():
+                    continue
+                if is_give_up_filter and row['Is Give Up?'] != is_give_up_filter.lower():
+                    continue
 
                 row_date = datetime.strptime(row['Date'], date_format)
                 if date_after and row_date < date_after:
@@ -80,9 +88,9 @@ def filter_games(my_leader_filter=None, enemy_leader_filter=None, my_base_filter
         print("Le fichier CSV n'existe pas. Assurez-vous que les données ont été ajoutées.")
         return []
 
-def calculate_win_ratio(my_leader_filter=None, enemy_leader_filter=None, my_base_filter=None, enemy_base_filter=None, date_after=None, date_before=None, platform_filter=None):
+def calculate_win_ratio(my_leader_filter=None, enemy_leader_filter=None, my_base_filter=None, enemy_base_filter=None, date_after=None, date_before=None, platform_filter=None, has_init_filter=None, is_give_up_filter=None):
     """Calcule des statistiques globales par combinaison My Leader / Enemy Leader."""
-    stats_by_leader_pair = defaultdict(lambda: {'games': 0, 'wins': 0, 'giveups': 0, 'turns': 0})
+    stats_by_leader_pair = defaultdict(lambda: {'games': 0, 'wins': 0, 'giveups': 0, 'turns': 0, 'points_my_base': 0, 'points_enemy_base': 0})
 
     filtered_rows = filter_games(
         my_leader_filter=my_leader_filter, 
@@ -91,7 +99,9 @@ def calculate_win_ratio(my_leader_filter=None, enemy_leader_filter=None, my_base
         enemy_base_filter=enemy_base_filter, 
         date_after=date_after, 
         date_before=date_before, 
-        platform_filter=platform_filter
+        platform_filter=platform_filter,
+        has_init_filter=has_init_filter,
+        is_give_up_filter=is_give_up_filter,
     )
 
     total_games = 0
@@ -104,6 +114,9 @@ def calculate_win_ratio(my_leader_filter=None, enemy_leader_filter=None, my_base
 
         stats_by_leader_pair[pair_key]['games'] += 1
         stats_by_leader_pair[pair_key]['turns'] += int(row['Turn'])
+        stats_by_leader_pair[pair_key]['points_my_base'] += int(row['Points My Base'])
+        stats_by_leader_pair[pair_key]['points_enemy_base'] += int(row['Points Enemy Base'])
+        
         if row['Is WIN'] == '1':
             stats_by_leader_pair[pair_key]['wins'] += 1
             total_wins += 1
@@ -118,19 +131,21 @@ def calculate_win_ratio(my_leader_filter=None, enemy_leader_filter=None, my_base
 
     # Afficher les statistiques par paire de leaders
     print("Statistiques par combinaison My Leader / Enemy Leader :")
-    print(f"{'My Leader':<20} {'Enemy Leader':<20} {'Victoires (%)':<15} {'Abandons (%)':<15} {'Tours Moyens':<15} {'Parties Jouées':<15}")
+    print(f"{'My Leader':<20} {'Enemy Leader':<20} {'Victoires (%)':<15} {'Abandons (%)':<15} {'Tours Moyens':<15} {'Points My Base Moyens':<25} {'Points Enemy Base Moyens':<25} {'Parties Jouées':<15}")
 
     for (my_leader, enemy_leader), stats in stats_by_leader_pair.items():
         win_ratio = (stats['wins'] / stats['games']) * 100 if stats['games'] > 0 else 0
         give_up_ratio = (stats['giveups'] / stats['games']) * 100 if stats['games'] > 0 else 0
         avg_turns = stats['turns'] / stats['games'] if stats['games'] > 0 else 0
-        print(f"{my_leader:<20} {enemy_leader:<20} {win_ratio:<15.2f} {give_up_ratio:<15.2f} {avg_turns:<15.2f} {stats['games']:<15}")
+        avg_points_my_base = stats['points_my_base'] / stats['games'] if stats['games'] > 0 else 0
+        avg_points_enemy_base = stats['points_enemy_base'] / stats['games'] if stats['games'] > 0 else 0
+        print(f"{my_leader:<20} {enemy_leader:<20} {win_ratio:<15.2f} {give_up_ratio:<15.2f} {avg_turns:<15.2f} {avg_points_my_base:<25.2f} {avg_points_enemy_base:<25.2f} {stats['games']:<15}")
 
     # Afficher le ratio global si souhaité
     win_ratio_global = (total_wins / total_games) * 100 if total_games > 0 else 0
     print(f"\nRatio de victoires global : {win_ratio_global:.2f}%")
 
-def rank_leaders(my_leader_filter=None, enemy_leader_filter=None, my_base_filter=None, enemy_base_filter=None, date_after=None, date_before=None, platform_filter=None):
+def rank_leaders(my_leader_filter=None, enemy_leader_filter=None, my_base_filter=None, enemy_base_filter=None, date_after=None, date_before=None, platform_filter=None, is_give_up_filter=None):
     """Classe les leaders par taux de victoire, nombre de tours et taux d'abandon."""
     leader_stats = defaultdict(lambda: {'games': 0, 'wins': 0, 'giveups': 0, 'turns': 0})
 
@@ -141,7 +156,8 @@ def rank_leaders(my_leader_filter=None, enemy_leader_filter=None, my_base_filter
         enemy_base_filter=enemy_base_filter, 
         date_after=date_after, 
         date_before=date_before, 
-        platform_filter=platform_filter
+        platform_filter=platform_filter,
+        is_give_up_filter=is_give_up_filter,
     )
 
     for row in filtered_rows:
@@ -174,7 +190,7 @@ def rank_leaders(my_leader_filter=None, enemy_leader_filter=None, my_base_filter
     for rank, (leader, win_ratio, give_up_ratio, avg_turns, games) in enumerate(leader_ranking, start=1):
         print(f"{leader:<15} {win_ratio:<15.2f} {give_up_ratio:<15.2f} {avg_turns:<15.2f} {games:<15}")
 
-def display_filtered_data(my_leader_filter=None, enemy_leader_filter=None, my_base_filter=None, enemy_base_filter=None, date_after=None, date_before=None, platform_filter=None):
+def display_filtered_data(my_leader_filter=None, enemy_leader_filter=None, my_base_filter=None, enemy_base_filter=None, date_after=None, date_before=None, platform_filter=None, has_init_filter=None, is_give_up_filter=None):
     """Affiche les lignes de données en fonction des filtres spécifiés."""
     
     # Filtrer les données en utilisant les filtres spécifiés
@@ -185,7 +201,9 @@ def display_filtered_data(my_leader_filter=None, enemy_leader_filter=None, my_ba
         enemy_base_filter=enemy_base_filter, 
         date_after=date_after, 
         date_before=date_before, 
-        platform_filter=platform_filter
+        platform_filter=platform_filter,
+        has_init_filter=has_init_filter,
+        is_give_up_filter=is_give_up_filter,
     )
     
     if not filtered_rows:
@@ -193,11 +211,11 @@ def display_filtered_data(my_leader_filter=None, enemy_leader_filter=None, my_ba
         return
 
     # Afficher les en-têtes de colonne
-    print(f"{'Date':<12} {'My Leader':<20} {'My Base':<15} {'Enemy Leader':<20} {'Enemy Base':<15} {'Is WIN':<6} {'Is Give Up?':<12} {'Turn':<5} {'Platform':<10} {'Side':<25} {'Comment':<50}")
+    print(f"{'Date':<12} {'My Leader':<20} {'My Base':<15} {'Enemy Leader':<20} {'Enemy Base':<15} {'Is WIN':<6} {'Is Give Up?':<12} {'Has Init?':<10} {'Turn':<5} {'My hp left':<11} {'enemy HP left':<15} {'Platform':<10} {'Side':<20} {'Comment':<20}")
 
     # Afficher les données filtrées
     for row in filtered_rows:
-        print(f"{row['Date']:<12} {row['My Leader']:<20} {row['My Base']:<15} {row['Enemy Leader']:<20} {row['Enemy Base']:<15} {row['Is WIN']:<6} {row['Is Give Up?']:<12} {row['Turn']:<5} {row['Platform']:<10} {row['Side']:<25} {row['Comment']:<50}")
+        print(f"{row['Date']:<12} {row['My Leader']:<20} {row['My Base']:<15} {row['Enemy Leader']:<20} {row['Enemy Base']:<15} {row['Is WIN']:<6} {row['Is Give Up?']:<12} {row['Has Init?']:<10} {row['Turn']:<5} {row['Points My Base']:<11} {row['Points Enemy Base']:<15} {row['Platform']:<10} {row['Side']:<20} {row['Comment']:<20}")
 
 def main():
     parser = argparse.ArgumentParser(description="Gestion des parties de Star Wars.")
@@ -214,6 +232,7 @@ def main():
     parser.add_argument('--date_after', help="Filtrer les données après cette date (format YYYY-MM-DD).")
     parser.add_argument('--date_before', help="Filtrer les données avant cette date (format YYYY-MM-DD).")
     parser.add_argument('--platform', help="Filtrer par plateforme.")
+    parser.add_argument('--is_give_up', help="Filtrer par abandon (0/1).")
 
     args = parser.parse_args()
 
@@ -227,7 +246,9 @@ def main():
             enemy_base_filter=args.enemy_base,
             date_after=args.date_after,
             date_before=args.date_before,
-            platform_filter=args.platform
+            platform_filter=args.platform,
+            is_give_up_filter=args.is_give_up,
+            
         )
     elif args.command == 'rank':
         rank_leaders(
@@ -237,7 +258,8 @@ def main():
             enemy_base_filter=args.enemy_base,
             date_after=args.date_after,
             date_before=args.date_before,
-            platform_filter=args.platform
+            platform_filter=args.platform,
+            is_give_up_filter=args.is_give_up,
         )
     elif args.command == 'display':
         display_filtered_data(
@@ -247,7 +269,8 @@ def main():
             enemy_base_filter=args.enemy_base,
             date_after=args.date_after,
             date_before=args.date_before,
-            platform_filter=args.platform
+            platform_filter=args.platform,
+            is_give_up_filter=args.is_give_up,
         )
 
 if __name__ == "__main__":
